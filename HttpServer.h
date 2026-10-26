@@ -10,6 +10,7 @@
 #include<netinet/in.h>
 #include<unistd.h>
 #include<sys/epoll.h>
+#include"ThreadPool.h"
 
 // 封装解析后的 HTTP请求
 class HttpRequest{
@@ -55,6 +56,8 @@ private:
 
     // 路由表： 路径-> 处理函数
     std::unordered_map<std::string, HttpHandle> routes;
+
+    ThreadPool pool{4}; // 新增：内置一个线程池
 
     // 处理某个客户端发来的完整的HTTP请求
     void handleRequest(int client_fd, const std::string& raw_request);

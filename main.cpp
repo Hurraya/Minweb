@@ -15,6 +15,11 @@ int main(){
         res.body = "<h1>Hello Route!</h1><a href='/'>go back to home</a>";
     });
 
+    app.route("/sleep", [](const HttpRequest& req, HttpResponse& res){
+        sleep(5);   // 假装处理了5秒钟业务
+        res.body = "I finally woke up!";
+    });
+
     // 启动服务
     app.run();
 

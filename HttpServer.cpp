@@ -48,36 +48,43 @@ void HttpServer::route(const std::string& path, HttpHandle handler){
 }
 
 void HttpServer::handleRequest(int client_fd, const std::string& raw_request){
-    HttpRequest req;
-    HttpResponse res;
+    // 在线程池中丢一个 lambda函数
+    pool.enqueue([this, client_fd, raw_request](){
+        HttpRequest req;
+        HttpResponse res;
 
-    if (req.parse(raw_request)){
-        // 查看有没有对应的路由
-        if (routes.count(req.path)){    // C++20可以用contains，这里的count有返回什么？没有返回什么
-            // 查表看有没有对应的路由处理函数
-            routes[req.path](req, res);
+        if (req.parse(raw_request)){
+            // 查看有没有对应的路由
+            if (routes.count(req.path)){    // C++20可以用contains，这里的count有返回什么？没有返回什么
+                // 查表看有没有对应的路由处理函数
+                routes[req.path](req, res);  // 子线程的路由逻辑
 
+            }else{
+                // 没找到
+                res.status = "404 Not Found";
+                res.body = "<h1>404 Not Found</h1>";
+            }
+
+        
         }else{
-            // 没找到
-            res.status = "404 Not Found";
-            res.body = "<h1>404 Not Found</h1>";
-        }
+            // 解析失败
+            res.status = "400 Bad Request";
+            res.body = "<h1>400 Bad Request</h1>";
 
-       
-    }else{
-        // 解析失败
-        res.status = "400 Bad Request";
-        res.body = "<h1>400 Bad Request</h1>";
+        } 
+        // 把组装好的响应发送给客户端
+        std::string response_str = res.toString();
+        write(client_fd, response_str.c_str(), response_str.length());
 
-    } 
-    // 把组装好的响应发送给客户端
-    std::string response_str = res.toString();
-    write(client_fd, response_str.c_str(), response_str.length());
+        // 发送完毕，关闭连接（Epoll事件循环在主线程，这里要小心并发问题!!
+        close(client_fd);
+    });
 }
 
 HttpServer::HttpServer(int port) : port(port){
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     epoll_fd = epoll_create1(0);
+
 
     // 解决端口占用
     int opt = 1;
@@ -179,10 +186,13 @@ void HttpServer::run(){
                     }
                 }
                 if (!request.empty()){
-                    handleRequest(current_fd, request);
+                    
                     // 因为我们设置了 connection::close，处理完直接关闭
+                    // 增加了线程池，直接在子线程删除了client_fd
+                    // 我们就把它从 Epoll 删除，交给子线程去close
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, current_fd, nullptr);
-                    close(current_fd);
+                    handleRequest(current_fd, request); // 扔给线程池处理并发送
+                    
                 }
             }
 
