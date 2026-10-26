@@ -1,0 +1,22 @@
+// 业务代码，只写路由逻辑
+#include"HttpServer.h"
+
+int main(){
+    HttpServer app(8080);
+
+    // 注册路由
+    app.route("/", [](const HttpRequest& req, HttpResponse& res){
+        res.headers["Content-Type"] = "text/html;  charset=utf-8";
+        res.body = "<h1> 🎊welcome to your C++ web frame!!</h1> <p>this is wrote in Epoll</p>";
+    });
+
+    app.route("/hello", [](const HttpRequest& req, HttpResponse& res){
+        res.headers["Content-Type"] = "text/html; charset=utf-8";
+        res.body = "<h1>Hello Route!</h1><a href='/'>go back to home</a>";
+    });
+
+    // 启动服务
+    app.run();
+
+    return 0;
+}

@@ -1,0 +1,25 @@
+# 1. 忽略所有的编译目标文件和可执行文件
+# Linux C++ 编译产生的目标文件
+*.o 
+*.obj
+
+# 可执行文件 
+app
+# 通常还会忽略没有后缀的 a.out
+a.out
+# 如果用 CMake 构建，通常会在 build 目录下
+build/
+
+# 2. 忽略 IDE 和编辑器的缓存文件夹
+# VS Code 的配置（如果是团队项目，建议忽略本地私有配置）
+.vscode/
+# JetBrains CLion 的配置
+.idea/
+# vim 临时文件
+*.swp
+*~
+
+# 3. 忽略常见的依赖库文件
+*.so
+*.a
+*.dylib
