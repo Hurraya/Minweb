@@ -27,4 +27,4 @@ add_executable(webapp
 )
 
 # 链接MySQL库
-target_link_libraries(webapp ${MYSQL_LIBRARIES})
+target_link_libraries(webapp ${MYSQL_LIBRARIES} hiredis)

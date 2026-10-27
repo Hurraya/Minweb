@@ -6,6 +6,7 @@
 # 可执行文件 
 app
 db_test
+redis_test
 # 通常还会忽略没有后缀的 a.out
 a.out
 # 如果用 CMake 构建，通常会在 build 目录下

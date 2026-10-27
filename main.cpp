@@ -7,7 +7,7 @@
 DBManager db;
 int main(){
     
-    // 1.初始化数据库连接
+    // 1.初始化数据库连接，redis连接
     if (!(db.init("localhost", "root", "123456", "test_db"))){
         std::cerr << "failed init,please ensure MySQL is turned on";
         return 1;
@@ -41,11 +41,11 @@ int main(){
         std::string password = "";
 
         size_t u_pos = req.body.find(user_str);
-        size_t p_pos = req.body.find("&"+pass_str);
+        size_t p_pos = req.body.find("&"+pass_str); //数据和数据之间是用&连接，&是一个分隔符，确保找到字段边界
 
         if (u_pos != std::string::npos && p_pos != std::string::npos){
             username = req.body.substr(u_pos + user_str.length(), p_pos - (u_pos + user_str.length()));
-            password = req.body.substr(p_pos + pass_str.length() + 1);
+            password = req.body.substr(p_pos + pass_str.length() + 1);  // 把&算入
         }
 
         if (username.empty() || password.empty()){
