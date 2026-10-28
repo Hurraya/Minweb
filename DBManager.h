@@ -20,4 +20,12 @@ public:
 
     // 从redis快速查数据
     std::string getCachedUser(const std::string& username);
+
+    // 设置session
+    bool setSession(std::string& session_id, const std::string& username);
+
+    // 查找username by session
+    std::string getSession(std::string session_id);
+
+
 };

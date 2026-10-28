@@ -18,9 +18,13 @@ public:
     std::string method;     // GET或POST
     std::string path;       // 比如/hello
     std::string body;       // POST的表单数据
+    std::map<std::string, std::string> headers;     // 从headers中解析出headers
+    std::string username;
+    std::string password;
 
     // 解析原始字符串
     bool parse(const std::string& raw_data);
+    bool parseBody();
 };
 
 // 封装要发回去的HTTP响应

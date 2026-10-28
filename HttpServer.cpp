@@ -3,40 +3,87 @@
 #include<cerrno>
 #include "HttpServer.h"
 
-bool HttpRequest::parse(const std::string& raw_data){
+bool HttpRequest::parse(const std::string& raw_data) {
+    // 1. 解析 Request Line (GET /profile HTTP/1.1)
     size_t pos_method = raw_data.find(" ");
-    if (pos_method == std::string::npos){
-        std::cerr << "can't parse method\n"; 
-        return false;
-    }
+    if (pos_method == std::string::npos) return false;
     method = raw_data.substr(0, pos_method);
 
-    size_t pos_path = raw_data.find(" ", pos_method + 1);   // 从method后面开始找
-    if (pos_path == std::string::npos){
-        std::cerr << "can't parse path";
-        return false;
+    size_t pos_path = raw_data.find(" ", pos_method + 1);
+    if (pos_path == std::string::npos) return false;
+    path = raw_data.substr(pos_method + 1, pos_path - pos_method - 1);
+
+    // 2. 分离 Header 和 Body
+    size_t pos_header_end = raw_data.find("\r\n\r\n");
+    if (pos_header_end == std::string::npos) {
+        return true; // 没找到空行，可能报文还没收完，直接返回，不报错
     }
-    path = raw_data.substr(pos_method + 1, pos_path - pos_method -1);       // 第二个参数是“长度”
 
+    // 提取 Header 部分（跳过第一行 Request Line）
+    size_t pos_header_start = raw_data.find("\r\n") + 2;
+    std::string header_str = raw_data.substr(pos_header_start, pos_header_end - pos_header_start);
+    
+    // 3. 循环切割 Header
+    size_t start = 0;
+    while (start < header_str.length()) {
+        size_t end = header_str.find("\r\n", start);
+        if (end == std::string::npos) end = header_str.length();
 
-    size_t pos_body = raw_data.find("\r\n\r\n");
-    if (pos_body != std::string::npos){
-        body = raw_data.substr(pos_body + 4);           // +4跳过\r\n\r\n
-    }else{
+        std::string line = header_str.substr(start, end - start);
+        size_t colon_pos = line.find(":");
+        
+        if (colon_pos != std::string::npos) {
+            std::string key = line.substr(0, colon_pos);
+            std::string value = line.substr(colon_pos + 1);
+            
+            // 去除 key 和 value 前后的空格
+            while (!key.empty() && (key.back() == ' ' || key.back() == '\r')) key.pop_back();
+            while (!value.empty() && (value.front() == ' ' || value.front() == '\r')) value.erase(value.begin());
+            while (!value.empty() && (value.back() == ' ' || value.back() == '\r')) value.pop_back();
+            
+            headers[key] = value;
+        }
+        start = end + 2;
+    }
+
+    // 4. 提取 Body
+    if (pos_header_end + 4 < raw_data.length()) {
+        body = raw_data.substr(pos_header_end + 4);
+    } else {
         body = "";
     }
-    
 
     return true;
 }
+
+bool HttpRequest::parseBody(){
+    std::string user_str = "username=";
+    std::string pass_str = "password=";
+    
+
+    size_t u_pos = body.find(user_str);
+    size_t p_pos = body.find("&" + pass_str);
+
+    if (u_pos != std::string::npos && p_pos != std::string::npos){
+        username = body.substr(u_pos + user_str.length(), p_pos - (u_pos + user_str.length()));
+        password = body.substr(p_pos + pass_str.length() + 1);
+    }
+
+    if (username.empty() || password.empty()){
+        return false;
+    }
+    return true;
+}
+
 
 std::string HttpResponse::toString() const{
     std::string res = "HTTP/1.1 " + status + "\r\n";
     for (const auto& [key, value]: headers){
         res += key + ": " + value + "\r\n";
     }
-    res += "Content-Length: " + std::to_string(body.length());
-    res += "\r\n\r\n";
+    res += "Content-Length: " + std::to_string(body.length()) + "\r\n";
+    res += "Connection: close\r\n";
+    res += "\r\n";
     res += body;
     
     return res;
@@ -53,9 +100,11 @@ void HttpServer::handleRequest(int client_fd, const std::string& raw_request){
         HttpRequest req;
         HttpResponse res;
 
-        if (req.parse(raw_request)){
+        bool parse = req.parse(raw_request);
+        req.parseBody();
+        if (parse){
             // 查看有没有对应的路由
-            if (routes.count(req.path)){    // C++20可以用contains，这里的count有返回什么？没有返回什么
+            if (routes.count(req.path)){    // C++20可以用contains，这里的count有返回什么数量，没有返回0
                 // 查表看有没有对应的路由处理函数
                 routes[req.path](req, res);  // 子线程的路由逻辑
 
@@ -72,11 +121,15 @@ void HttpServer::handleRequest(int client_fd, const std::string& raw_request){
             res.body = "<h1>400 Bad Request</h1>";
 
         } 
+
         // 把组装好的响应发送给客户端
         std::string response_str = res.toString();
         write(client_fd, response_str.c_str(), response_str.length());
 
-        // 发送完毕，关闭连接（Epoll事件循环在主线程，这里要小心并发问题!!
+        //发完数据必须shutdown
+        shutdown(client_fd, SHUT_WR);
+
+        // 发送完毕，关闭连接（Epoll事件循环在主线程，这里要小心并发问题!!,这里把他关闭了，主线程不知道还继续用就会崩溃
         close(client_fd);
     });
 }

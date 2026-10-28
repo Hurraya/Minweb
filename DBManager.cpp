@@ -48,13 +48,40 @@ bool DBManager::registerUser(const std::string& username, const std::string& pas
 
 std::string DBManager::getCachedUser(const std::string& username){
     std::string redis_key = "user: " + username;
-    redisReply* reply = (redisReply*)redisCommand(redis_conn, "GET %s", redis_key.c_str());
+    redisReply* reply = (redisReply*)redisCommand(redis_conn, "GET %s", redis_key.c_str());// redis断开，rediscommand会返回空指针
 
     std::string result = "";
     if (reply != nullptr && reply->type == REDIS_REPLY_STRING){
-        result = reply->str;
+        result = std::string(reply->str, reply->len);
     }
 
     if (reply) freeReplyObject(reply);
     return result;
 }
+
+bool DBManager::setSession(std::string& session_id,const std::string& username){
+    std::string redis_key = "session:" + session_id;
+    std::string redis_value = username;
+
+    redisReply* reply = (redisReply*)redisCommand(redis_conn, "SET %s %s", redis_key.c_str(), redis_value.c_str());
+
+    if (reply != nullptr && reply->type == REDIS_REPLY_STATUS && std::string(reply->str) == "OK") {
+        freeReplyObject(reply);
+        return true;
+    }
+    if(reply) freeReplyObject(reply);
+    return false;
+}
+
+std::string DBManager::getSession(std::string session_id){
+    std::string username = "";
+    std::string redis_key = "session:" + session_id;
+
+    redisReply* reply = (redisReply*)redisCommand(redis_conn, "GET %s", redis_key.c_str());
+
+    if (reply != nullptr && reply->type == REDIS_REPLY_STRING){
+        username = std::string(reply->str, reply->len);
+    }
+    if (reply) freeReplyObject(reply);
+    return username;
+};
